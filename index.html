@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VigiSalud Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+    h1 { color: #333; }
+    .container { max-width: 900px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }
+    canvas { max-height: 400px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏥 VigiSalud - Predicciones</h1>
+    <canvas id="grafico"></canvas>
+  </div>
+
+  <script>
+    async function cargar() {
+      const url = "https://qlbczflygozfvwyilhes.supabase.co/rest/v1/predicciones?select=*";
+      const apiKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsYmN6Zmx5Z296ZnZ3eWlsaGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg5NDM0NTAsImV4cCI6MjA5NDUxOTQ1MH0.EiNp2HRocIqW4yStNxBoHgDN-EfFZvPv_Uc5ETo0wYg";
+      
+      const res = await fetch(url, {
+        headers: { "apikey": apiKey, "Authorization": `Bearer ${apiKey}` }
+      });
+      
+      const datos = await res.json();
+      
+      const zonas = [...new Set(datos.map(d => d.zona))];
+      const fechas = [...new Set(datos.map(d => d.fecha))].sort();
+      
+      const colores = ['#e74c3c', '#3498db', '#2ecc71'];
+      
+      const datasets = zonas.map((zona, i) => ({
+        label: zona,
+        data: fechas.map(f => {
+          const r = datos.find(d => d.fecha === f && d.zona === zona);
+          return r ? r.consultas_predichas : 0;
+        }),
+        borderColor: colores[i],
+        tension: 0.3
+      }));
+      
+      new Chart(document.getElementById('grafico'), {
+        type: 'line',
+        data: { labels: fechas, datasets }
+      });
+    }
+    
+    cargar();
+  </script>
+</body>
+</html>
