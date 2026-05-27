@@ -1,0 +1,739 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VigiSalud v3.5</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,300&family=Syne:wght@700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+  :root {
+    --bg: #070710;
+    --surface: #0f0f1a;
+    --surface2: #141422;
+    --border: #1e1e32;
+    --accent: #e8ff47;
+    --done: #2aff8f;
+    --warn: #ff8c47;
+    --red: #ff4766;
+    --text: #e8e8f0;
+    --muted: #40406a;
+    --muted2: #6a6a9a;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    min-height: 100vh;
+    padding: 28px 18px 56px;
+  }
+
+  /* Ambient glow */
+  .glow-tl {
+    position: fixed; top: -25%; left: -15%;
+    width: 60vw; height: 60vw;
+    background: radial-gradient(circle, rgba(232,255,71,0.035) 0%, transparent 65%);
+    pointer-events: none; z-index: 0;
+  }
+  .glow-br {
+    position: fixed; bottom: -25%; right: -15%;
+    width: 60vw; height: 60vw;
+    background: radial-gradient(circle, rgba(42,255,143,0.04) 0%, transparent 65%);
+    pointer-events: none; z-index: 0;
+  }
+
+  .container {
+    max-width: 620px;
+    margin: 0 auto;
+    position: relative;
+    z-index: 1;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    margin-bottom: 22px;
+    animation: up 0.5s ease both;
+  }
+
+  .top-row {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 9px;
+    letter-spacing: 0.25em;
+    text-transform: uppercase;
+    color: var(--done);
+    background: rgba(42,255,143,0.08);
+    border: 1px solid rgba(42,255,143,0.2);
+    border-radius: 99px;
+    padding: 4px 10px;
+    margin-bottom: 12px;
+  }
+
+  .badge::before {
+    content: '';
+    width: 5px; height: 5px;
+    border-radius: 50%;
+    background: var(--done);
+    box-shadow: 0 0 6px rgba(42,255,143,0.8);
+    animation: blink 2s ease infinite;
+  }
+
+  .title {
+    font-family: 'Syne', sans-serif;
+    font-size: 30px;
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+  .title span { color: var(--accent); }
+
+  .meta {
+    margin-top: 8px;
+    font-size: 10px;
+    color: var(--muted2);
+    letter-spacing: 0.05em;
+  }
+
+  /* refresh btn */
+  #refreshBtn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-family: 'DM Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: border-color 0.2s, color 0.2s;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  #refreshBtn:hover { border-color: var(--accent); color: var(--accent); }
+  #refreshBtn:disabled { opacity: 0.4; cursor: default; }
+
+  .spin { display: inline-block; animation: spin 0.8s linear infinite; }
+
+  /* timestamp */
+  #timestamp {
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 10px;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── KPIS ── */
+  .kpis {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    margin-bottom: 20px;
+    animation: up 0.4s 0.08s ease both;
+  }
+
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 14px 12px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .kpi:hover { border-color: rgba(232,255,71,0.2); }
+
+  .kpi::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-kpi, var(--border));
+  }
+
+  .kpi-val {
+    font-family: 'Syne', sans-serif;
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1;
+    transition: color 0.3s;
+  }
+  .kpi-label {
+    font-size: 8px;
+    color: var(--muted2);
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    margin-top: 5px;
+  }
+  .kpi-sub {
+    font-size: 8px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* skeleton shimmer */
+  .skeleton {
+    background: linear-gradient(90deg, var(--surface2) 25%, var(--border) 50%, var(--surface2) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.2s infinite;
+    border-radius: 4px;
+    display: inline-block;
+  }
+
+  /* ── STATUS BAR ── */
+  .status-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 20px;
+    font-size: 10px;
+    animation: up 0.4s 0.12s ease both;
+  }
+
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted2);
+  }
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+  }
+  .dot-ok   { background: var(--done); box-shadow: 0 0 5px rgba(42,255,143,0.6); }
+  .dot-warn { background: var(--warn); }
+  .dot-err  { background: var(--red);  }
+
+  /* ── CHART ── */
+  .chart-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 18px 18px 14px;
+    margin-bottom: 18px;
+    animation: up 0.5s 0.18s ease both;
+    position: relative;
+  }
+
+  .chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .chart-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .zone-filters {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .zone-btn {
+    font-family: 'DM Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    padding: 3px 8px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted2);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .zone-btn.active {
+    background: rgba(232,255,71,0.1);
+    border-color: rgba(232,255,71,0.4);
+    color: var(--accent);
+  }
+
+  canvas { max-height: 240px; }
+
+  /* chart overlay states */
+  .chart-overlay {
+    position: absolute;
+    inset: 52px 18px 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--muted2);
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+  }
+  .chart-overlay.visible { opacity: 1; pointer-events: all; }
+  .chart-overlay .icon { font-size: 28px; }
+
+  /* ── TABLE ── */
+  .table-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 18px;
+    animation: up 0.4s 0.25s ease both;
+  }
+
+  .table-header {
+    padding: 14px 16px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .table-title {
+    font-family: 'Syne', sans-serif;
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .table-count {
+    font-size: 9px;
+    color: var(--muted2);
+    letter-spacing: 0.1em;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10px;
+  }
+  thead th {
+    padding: 8px 16px;
+    text-align: left;
+    font-size: 8px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 400;
+  }
+  tbody tr {
+    border-bottom: 1px solid rgba(30,30,50,0.6);
+    transition: background 0.15s;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--surface2); }
+  tbody td {
+    padding: 9px 16px;
+    color: var(--text);
+    line-height: 1;
+  }
+  .td-zona {
+    color: var(--muted2);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+  }
+  .td-val {
+    font-family: 'Syne', sans-serif;
+    font-weight: 700;
+    font-size: 13px;
+    color: var(--accent);
+  }
+
+  /* table skeleton rows */
+  .skel-row td { padding: 10px 16px; }
+
+  /* ── ERROR BANNER ── */
+  .error-banner {
+    display: none;
+    background: rgba(255,140,71,0.07);
+    border: 1px solid rgba(255,140,71,0.2);
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 10px;
+    color: #ffb380;
+    margin-bottom: 18px;
+    animation: up 0.3s ease both;
+    line-height: 1.6;
+  }
+  .error-banner.visible { display: block; }
+
+  /* ── FOOTER ── */
+  .footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 18px;
+    animation: up 0.4s 0.35s ease both;
+  }
+
+  .footnote {
+    font-size: 9px;
+    color: var(--muted);
+    font-style: italic;
+    letter-spacing: 0.05em;
+  }
+
+  .auto-badge {
+    font-size: 8px;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .auto-badge::before {
+    content: '';
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+
+  /* ── KEYFRAMES ── */
+  @keyframes up {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.3; }
+  }
+  @keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+</style>
+</head>
+<body>
+<div class="glow-tl"></div>
+<div class="glow-br"></div>
+
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="top-row">
+      <div>
+        <div class="badge">En vivo · Supabase</div>
+        <div class="title">VigiSalud<br><span>v3.5</span></div>
+        <div class="meta">Predicción de consultas · 7 días · MAE 7.5</div>
+      </div>
+      <button id="refreshBtn" onclick="cargar(true)">
+        <span id="refreshIcon">↻</span> Actualizar
+      </button>
+    </div>
+    <div id="timestamp">—</div>
+  </div>
+
+  <!-- ERROR -->
+  <div class="error-banner" id="errorBanner"></div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi" style="--accent-kpi: var(--accent)">
+      <div class="kpi-val" id="kpiMae">7.5</div>
+      <div class="kpi-label">MAE Modelo</div>
+      <div class="kpi-sub">v3.5 activo</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: var(--done)">
+      <div class="kpi-val" id="kpiPred"><span class="skeleton" style="width:36px;height:22px">&nbsp;</span></div>
+      <div class="kpi-label">Predicciones</div>
+      <div class="kpi-sub" id="kpiPredSub">cargando…</div>
+    </div>
+    <div class="kpi" style="--accent-kpi: var(--muted)">
+      <div class="kpi-val" id="kpiZonas"><span class="skeleton" style="width:24px;height:22px">&nbsp;</span></div>
+      <div class="kpi-label">Zonas</div>
+      <div class="kpi-sub" id="kpiZonasSub">detectadas</div>
+    </div>
+  </div>
+
+  <!-- STATUS -->
+  <div class="status-bar">
+    <div class="status-item">
+      <div class="status-dot dot-ok"></div>
+      <span>Supabase</span>
+    </div>
+    <div class="status-item">
+      <div class="status-dot dot-ok"></div>
+      <span>GitHub Actions 6AM</span>
+    </div>
+    <div class="status-item">
+      <div class="status-dot dot-ok" id="dotTelegram"></div>
+      <span>Telegram</span>
+    </div>
+    <div class="status-item" style="color:var(--muted)">
+      <span id="statusRefresh">—</span>
+    </div>
+  </div>
+
+  <!-- CHART -->
+  <div class="chart-section">
+    <div class="chart-header">
+      <div class="chart-title">📈 Próximos 7 días</div>
+      <div class="zone-filters" id="zoneFilters"></div>
+    </div>
+    <canvas id="grafico"></canvas>
+    <div class="chart-overlay" id="chartOverlay">
+      <div class="icon">📭</div>
+      <div id="chartOverlayMsg">Cargando datos…</div>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-section">
+    <div class="table-header">
+      <div class="table-title">Datos recientes</div>
+      <div class="table-count" id="tableCount">—</div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Zona</th>
+          <th>Consultas pred.</th>
+        </tr>
+      </thead>
+      <tbody id="tableBody">
+        <!-- skeleton rows -->
+        <tr class="skel-row"><td><span class="skeleton" style="width:70px;height:10px">&nbsp;</span></td><td><span class="skeleton" style="width:50px;height:10px">&nbsp;</span></td><td><span class="skeleton" style="width:40px;height:10px">&nbsp;</span></td></tr>
+        <tr class="skel-row"><td><span class="skeleton" style="width:70px;height:10px">&nbsp;</span></td><td><span class="skeleton" style="width:60px;height:10px">&nbsp;</span></td><td><span class="skeleton" style="width:40px;height:10px">&nbsp;</span></td></tr>
+        <tr class="skel-row"><td><span class="skeleton" style="width:70px;height:10px">&nbsp;</span></td><td><span class="skeleton" style="width:45px;height:10px">&nbsp;</span></td><td><span class="skeleton" style="width:40px;height:10px">&nbsp;</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <div class="footnote">Licencia MIT · listo para iterar</div>
+    <div class="auto-badge">Auto-refresh 5 min</div>
+  </div>
+
+</div>
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://qlbczflygozfvwyilhes.supabase.co";
+const API_KEY      = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsYmN6Zmx5Z296ZnZ3eWlsaGVzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDU2OTUxNTksImV4cCI6MjA2MTI3MTE1OX0.5LXQZ9EkQ4G7YiSg5nCxOTQ1MH0.EiNp2HRocIqW4yStNxBoHgDN-EfFZvPv_Uc5ETo0wYg";
+const ZONA_COLORS  = ['#e8ff47','#2aff8f','#47b8ff','#ff8c47','#c47aff'];
+
+// ── STATE ────────────────────────────────────────────────────────────────────
+let chartInstance = null;
+let allData       = [];
+let activeZones   = new Set();
+let autoTimer     = null;
+
+// ── HELPERS ──────────────────────────────────────────────────────────────────
+function now() {
+  return new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+function setTimestamp(ok) {
+  const el = document.getElementById('timestamp');
+  el.textContent = ok
+    ? `↻ Actualizado ${now()}`
+    : `⚠ Último intento ${now()} · fallo de red`;
+  el.style.color = ok ? 'var(--muted)' : 'var(--warn)';
+}
+
+function showError(msg) {
+  const b = document.getElementById('errorBanner');
+  b.textContent = msg;
+  b.classList.add('visible');
+}
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('visible');
+}
+
+function setRefreshing(on) {
+  const btn  = document.getElementById('refreshBtn');
+  const icon = document.getElementById('refreshIcon');
+  btn.disabled = on;
+  icon.className = on ? 'spin' : '';
+  icon.textContent = '↻';
+  document.getElementById('statusRefresh').textContent = on ? 'actualizando…' : now();
+}
+
+// ── RENDER CHART ─────────────────────────────────────────────────────────────
+function renderChart(data) {
+  const overlay = document.getElementById('chartOverlay');
+
+  if (!data.length) {
+    overlay.classList.add('visible');
+    document.getElementById('chartOverlayMsg').textContent = 'Sin datos disponibles';
+    return;
+  }
+  overlay.classList.remove('visible');
+
+  const zonas  = [...activeZones].sort();
+  const fechas = [...new Set(data.map(d => d.fecha))].sort();
+
+  const datasets = zonas.map((zona, i) => {
+    const color = ZONA_COLORS[i % ZONA_COLORS.length];
+    return {
+      label: zona,
+      data: fechas.map(f => {
+        const r = data.find(d => d.fecha === f && d.zona === zona);
+        return r ? r.consultas_predichas : null;
+      }),
+      borderColor: color,
+      backgroundColor: color + '18',
+      pointBackgroundColor: color,
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      tension: 0.35,
+      fill: true,
+      spanGaps: true,
+    };
+  });
+
+  if (chartInstance) {
+    chartInstance.data.labels   = fechas;
+    chartInstance.data.datasets = datasets;
+    chartInstance.update('active');
+  } else {
+    chartInstance = new Chart(document.getElementById('grafico'), {
+      type: 'line',
+      data: { labels: fechas, datasets },
+      options: {
+        responsive: true,
+        animation: { duration: 600, easing: 'easeInOutQuart' },
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            labels: {
+              color: '#6a6a9a',
+              font: { family: 'DM Mono', size: 9 },
+              boxWidth: 10, boxHeight: 10, borderRadius: 2,
+            }
+          },
+          tooltip: {
+            backgroundColor: '#0f0f1a',
+            borderColor: '#1e1e32',
+            borderWidth: 1,
+            titleColor: '#e8e8f0',
+            bodyColor: '#6a6a9a',
+            titleFont: { family: 'Syne', size: 12, weight: '700' },
+            bodyFont: { family: 'DM Mono', size: 10 },
+            padding: 10,
+            callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y ?? '—'} consultas`,
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: '#4a4a6a', font: { size: 8 }, maxTicksLimit: 7, maxRotation: 0 },
+            grid:  { color: 'rgba(30,30,50,0.6)' },
+          },
+          y: {
+            ticks: { color: '#4a4a6a', font: { size: 8 } },
+            grid:  { color: 'rgba(30,30,50,0.6)' },
+          }
+        }
+      }
+    });
+  }
+}
+
+// ── RENDER TABLE ─────────────────────────────────────────────────────────────
+function renderTable(data) {
+  const tbody = document.getElementById('tableBody');
+  const shown = data.slice(0, 20);
+
+  document.getElementById('tableCount').textContent =
+    data.length + ' registros' + (data.length > 20 ? ' · mostrando 20' : '');
+
+  if (!shown.length) {
+    tbody.innerHTML = `<tr><td colspan="3" style="padding:16px;color:var(--muted);text-align:center;font-size:10px">Sin datos</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = shown.map(d => `
+    <tr>
+      <td style="color:var(--muted2)">${d.fecha}</td>
+      <td class="td-zona">${d.zona ?? '—'}</td>
+      <td class="td-val">${d.consultas_predichas ?? '—'}</td>
+    </tr>
+  `).join('');
+}
+
+// ── RENDER ZONE FILTERS ───────────────────────────────────────────────────────
+function renderZoneFilters(zonas) {
+  const el = document.getElementById('zoneFilters');
+  el.innerHTML = '';
+
+  // "Todas" button
+  const all = document.createElement('button');
+  all.className = 'zone-btn' + (activeZones.size === zonas.length ? ' active' : '');
+  all.textContent = 'Todas';
+  all.onclick = () => {
+    zonas.forEach(z => activeZones.add(z));
+    renderZoneFilters(zonas);
+    renderChart(allData);
+  };
+  el.appendChild(all);
+
+  zonas.forEach(zona => {
+    const btn = document.createElement('button');
+    btn.className = 'zone-btn' + (activeZones.has(zona) ? ' active' : '');
+    btn.textContent = zona;
+    btn.onclick = () => {
+      if (activeZones.has(zona) && activeZones.size > 1) activeZones.delete(zona);
+      else activeZones.add(zona);
+      renderZoneFilters(zonas);
+      renderChart(allData);
+    };
+    el.appendChild(btn);
+  });
+}
+
+// ── DEMO DATA (fallback cuando no hay conexión) ───────────────────────────────
+function generarDemoData() {
+  const zonas  = ['Norte', 'Centro', 'Sur'];
+  const hoy    = new Date();
+  const rows   = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(hoy);
+    d.setDate(hoy.getDate() + i);
+    const fecha = d.toISOString().slice(0, 10);
+    zonas.forEach(zona => {
+      rows.push({
+        fecha,
+        zona,
+        consultas_predichas: Math.round(80 + Math.random() * 60 + (zona === 'Centro' ? 20 : 0)),
+      });
+    });
+  }
+  return rows;
+}
+
+// ── MAIN LOAD ────────────────────────────────────────────────────────────────
+async function cargar(manual = false) {
+  setRe
